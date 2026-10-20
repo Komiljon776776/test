@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Statistika</title><style>
+:root{--bg:#121214;--card:#18181c;--tx:#f1f1f4;--mu:#9a9aa6;--ac:#7c3aed;--ok:#4ade80;--no:#f87171;--bd:#2c2c33;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,sans-serif}
+#app{max-width:760px;margin:0 auto;padding:16px}h2{margin:18px 0 8px;font-size:18px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:8px}
+.r{display:flex;justify-content:space-between;gap:10px}.mu{color:var(--mu);font-size:13px}.ok{color:var(--ok)}.no{color:var(--no)}
+button{font:inherit;padding:12px 16px;border:0;border-radius:12px;background:var(--ac);color:#fff}summary{cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stats .c{text-align:center}.stats b{font-size:22px;display:block}
+select{width:100%;font:inherit;padding:12px;border-radius:12px;background:var(--card);color:var(--tx);border:1px solid var(--bd);margin:8px 0}
+.tabs{display:flex;gap:6px;margin:10px 0}.tabs button{flex:1;padding:11px 4px;background:var(--card);border:1px solid var(--bd);font-size:14px}.tabs .on{background:var(--ac);border-color:var(--ac)}
+.ans{border-top:1px solid var(--bd);padding:8px 0;font-size:14px}
+.ch{margin-top:6px;padding:6px 10px;border-radius:10px;background:#2a1618;font-size:13px}
+.gd{margin-top:6px;padding:6px 10px;border-radius:10px;background:#14231a;font-size:13px;color:var(--ok)}
+</style></head><body><div id="app"></div>
+<script src="questions.js"></script><script src="config.js"></script>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import{getFirestore,collection,getDocs,query,orderBy,limit}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+const fb=initializeApp(FB_CONFIG),auth=getAuth(fb),db=getFirestore(fb),app=document.getElementById('app');
+const e=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const qh=t=>{let h=5381;for(const c of t)h=((h<<5)+h+c.codePointAt(0))>>>0;return h.toString(36)};
+const QM={};Q.forEach(q=>QM[qh(q.t)]=q);
+const fd=d=>d?d.toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}):'';
+const pc=(s,n)=>n?Math.round(s/n*100):0;
+const msg=(m,btn)=>app.innerHTML='<div class="c" style="text-align:center;margin-top:40px"><h2>Statistika (admin)</h2><p class="mu">'+m+'</p>'+(btn?'<button id="go">Google bilan kirish</button>':'')+'</div>';
+let R=[],SEL='',TAB='w';
+onAuthStateChanged(auth,async u=>{
+ if(!u){msg('Admin sifatida kiring.',1);document.getElementById('go').onclick=()=>signInWithPopup(auth,new GoogleAuthProvider());return}
+ if(u.email!==ADMIN_EMAIL){msg('Bu sahifa faqat admin uchun. ('+e(u.email)+')');return}
+ msg('Yuklanmoqda...');
+ try{const sn=await getDocs(query(collection(db,'results'),orderBy('ts','desc'),limit(3000)));
+  R=sn.docs.map(d=>{const x=d.data();x.t=x.ts&&x.ts.toDate?x.ts.toDate():null;return x});render()}
+ catch(x){msg('Xato: '+e(x.code||x.message))}});
+
+function answers(r){
+ if(!r.a||!r.a.length)return '<div class="mu" style="margin-top:6px">Bu urinishda javoblar saqlanmagan (eski urinish).</div>';
+ return r.a.map(x=>{const q=QM[x.h];if(!q)return '';
+  return '<div class="ans"><div>'+e(q.t)+'</div>'+(x.ok?'<div class="ok">✓ '+e(q.o[x.k])+'</div>':'<div class="no">✗ '+e(q.o[x.k]!==undefined?q.o[x.k]:'?')+'</div><div class="ok">To‘g‘ri javob: '+e(q.o[q.c])+'</div>')+'</div>'}).join('')}
+
+function qcard(h,v,mode){
+ const q=QM[h];let s='<div class="c"><div>'+e(q?q.t:'(o‘chirilgan savol)')+'</div>';
+ if(mode=='w'){
+  s+='<div class="mu">'+v.w+' marta xato / '+v.a+' marta berilgan · <span class="no">'+pc(v.w,v.a)+'% xato</span></div>';
+  if(q){s+='<div class="gd">To‘g‘ri javob bo‘lishi kerak edi: '+e(q.o[q.c])+'</div>';
+   const ch=Object.entries(v.ch).sort((a,b)=>b[1]-a[1]);
+   if(ch.length)s+='<div class="ch">Tanlangan xato javoblar:'+ch.map(([k,n])=>'<div>• '+e(q.o[k]!==undefined?q.o[k]:'?')+' — <b>'+n+'</b> kishi/marta</div>').join('')+'</div>'}
+ }else{
+  const k=v.a-v.w;
+  s+='<div class="mu">'+k+' marta to‘g‘ri / '+v.a+' marta berilgan · <span class="ok">'+pc(k,v.a)+'% to‘g‘ri</span></div>';
+  if(q)s+='<div class="gd">'+e(q.o[q.c])+'</div>'}
+ return s+'</div>'}
+
+function render(){
+ const U={};R.forEach(r=>{(U[r.uid]=U[r.uid]||{uid:r.uid,name:r.name,email:r.email,a:[]}).a.push(r)});
+ const us=Object.values(U).sort((a,b)=>(a.name||a.email||'').localeCompare(b.name||b.email||''));
+ const RS=SEL?R.filter(r=>r.uid===SEL):R;
+ const S=RS.reduce((t,r)=>t+r.s,0),N=RS.reduce((t,r)=>t+r.n,0);
+ const QS={};const g=h=>QS[h]=QS[h]||{a:0,w:0,ch:{}};
+ RS.forEach(r=>{(r.q||[]).forEach(h=>g(h).a++);(r.w||[]).forEach(h=>g(h).w++);
+  (r.a||[]).forEach(x=>{if(!x.ok){const o=g(x.h).ch;o[x.k]=(o[x.k]||0)+1}})});
+ const ent=Object.entries(QS);
+ const wr=ent.filter(([h,v])=>v.w>0).sort((a,b)=>b[1].w/b[1].a-a[1].w/a[1].a||b[1].w-a[1].w).slice(0,50);
+ const rt=ent.filter(([h,v])=>v.a-v.w>0).sort((a,b)=>(b[1].a-b[1].w)/b[1].a-(a[1].a-a[1].w)/a[1].a||(b[1].a-b[1].w)-(a[1].a-a[1].w)).slice(0,50);
+ let body='';
+ if(TAB=='u'){
+  const list=SEL?us.filter(u=>u.uid===SEL):us;
+  body=list.map(u=>{const s=u.a.reduce((t,r)=>t+r.s,0),n=u.a.reduce((t,r)=>t+r.n,0);
+   return '<details class="c"'+(SEL?' open':'')+'><summary><div class="r"><b>'+e(u.name||u.email)+'</b><b class="'+(pc(s,n)>=70?'ok':'no')+'">'+pc(s,n)+'%</b></div><div class="mu">'+e(u.email)+' · '+u.a.length+' urinish · oxirgisi: '+fd(u.a[0].t)+'</div></summary>'+
+   u.a.map(r=>'<details style="margin-top:8px"><summary class="r mu"><span>'+fd(r.t)+' · '+e(r.block)+'</span><span>'+r.s+' / '+r.n+'</span></summary>'+answers(r)+'</details>').join('')+'</details>'}).join('')}
+ else if(TAB=='w')body=wr.map(([h,v])=>qcard(h,v,'w')).join('')||'<p class="mu">Hali xato yo‘q.</p>';
+ else body=rt.map(([h,v])=>qcard(h,v,'r')).join('')||'<p class="mu">Hali ma‘lumot yo‘q.</p>';
+ app.innerHTML='<div class="r"><h2>Statistika</h2><button id="rf">Yangilash</button></div>'+
+ '<select id="usel"><option value="">Hamma foydalanuvchilar</option>'+us.map(u=>'<option value="'+e(u.uid)+'"'+(u.uid===SEL?' selected':'')+'>'+e(u.name||u.email)+' ('+u.a.length+')</option>').join('')+'</select>'+
+ '<div class="stats"><div class="c"><b>'+(SEL?1:us.length)+'</b><span class="mu">foydalanuvchi</span></div><div class="c"><b>'+RS.length+'</b><span class="mu">urinish</span></div><div class="c"><b>'+pc(S,N)+'%</b><span class="mu">o‘rtacha</span></div></div>'+
+ '<div class="tabs"><button data-t="u" class="'+(TAB=='u'?'on':'')+'">Foydalanuvchilar</button><button data-t="w" class="'+(TAB=='w'?'on':'')+'">Xatolar</button><button data-t="r" class="'+(TAB=='r'?'on':'')+'">To‘g‘rilar</button></div>'+
+ body+'<p style="margin-top:20px"><button id="out" style="background:#2c2c33">Chiqish</button></p>';
+ document.getElementById('usel').onchange=ev=>{SEL=ev.target.value;render()};
+ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;render()});
+ document.getElementById('rf').onclick=()=>location.reload();
+ document.getElementById('out').onclick=()=>signOut(auth)}
+</script></body></html>
