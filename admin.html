@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Statistika</title><style>
+:root{--bg:#121214;--card:#18181c;--tx:#f1f1f4;--mu:#9a9aa6;--ac:#7c3aed;--ok:#4ade80;--no:#f87171;--bd:#2c2c33;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,sans-serif}
+#app{max-width:760px;margin:0 auto;padding:16px}h2{margin:18px 0 8px;font-size:18px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:8px}
+.r{display:flex;justify-content:space-between;gap:10px}.mu{color:var(--mu);font-size:13px}.ok{color:var(--ok)}.no{color:var(--no)}
+button{font:inherit;padding:12px 16px;border:0;border-radius:12px;background:var(--ac);color:#fff}summary{cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stats .c{text-align:center}.stats b{font-size:22px;display:block}
+</style></head><body><div id="app"></div>
+<script src="questions.js"></script><script src="config.js"></script>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import{getFirestore,collection,getDocs,query,orderBy,limit}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+const fb=initializeApp(FB_CONFIG),auth=getAuth(fb),db=getFirestore(fb),app=document.getElementById('app');
+const e=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const qh=t=>{let h=5381;for(const c of t)h=((h<<5)+h+c.codePointAt(0))>>>0;return h.toString(36)};
+const QT={};Q.forEach(q=>QT[qh(q.t)]=q.t);
+const fd=d=>d?d.toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'}):'';
+const pc=(s,n)=>n?Math.round(s/n*100):0;
+const msg=(m,btn)=>app.innerHTML='<div class="c" style="text-align:center;margin-top:40px"><h2>Statistika (admin)</h2><p class="mu">'+m+'</p>'+(btn?'<button id="go">Google bilan kirish</button>':'')+'</div>';
+onAuthStateChanged(auth,async u=>{
+ if(!u){msg('Admin sifatida kiring.',1);document.getElementById('go').onclick=()=>signInWithPopup(auth,new GoogleAuthProvider());return}
+ if(u.email!==ADMIN_EMAIL){msg('Bu sahifa faqat admin uchun. ('+e(u.email)+')');return}
+ msg('Yuklanmoqda...');
+ try{const sn=await getDocs(query(collection(db,'results'),orderBy('ts','desc'),limit(3000)));
+  show(sn.docs.map(d=>{const x=d.data();x.t=x.ts&&x.ts.toDate?x.ts.toDate():null;return x}))}
+ catch(x){msg('Xato: '+e(x.code||x.message))}});
+function show(R){
+ const U={},QS={};
+ R.forEach(r=>{const u=U[r.uid]||(U[r.uid]={name:r.name,email:r.email,a:[]});u.a.push(r);
+  (r.q||[]).forEach(h=>(QS[h]||(QS[h]={a:0,w:0})).a++);(r.w||[]).forEach(h=>(QS[h]||(QS[h]={a:0,w:0})).w++)});
+ const us=Object.values(U),S=R.reduce((t,r)=>t+r.s,0),N=R.reduce((t,r)=>t+r.n,0);
+ const qs=Object.entries(QS).filter(([h,v])=>v.w>0).sort((a,b)=>b[1].w/b[1].a-a[1].w/a[1].a||b[1].w-a[1].w).slice(0,25);
+ app.innerHTML='<div class="r"><h2>Statistika</h2><button onclick="location.reload()">Yangilash</button></div>'+
+ '<div class="stats"><div class="c"><b>'+us.length+'</b><span class="mu">foydalanuvchi</span></div><div class="c"><b>'+R.length+'</b><span class="mu">urinish</span></div><div class="c"><b>'+pc(S,N)+'%</b><span class="mu">o\u2018rtacha</span></div></div>'+
+ '<h2>Foydalanuvchilar</h2>'+us.map(u=>{const s=u.a.reduce((t,r)=>t+r.s,0),n=u.a.reduce((t,r)=>t+r.n,0);
+  return '<details class="c"><summary><div class="r"><b>'+e(u.name||u.email)+'</b><b class="'+(pc(s,n)>=70?'ok':'no')+'">'+pc(s,n)+'%</b></div><div class="mu">'+e(u.email)+' · '+u.a.length+' urinish · oxirgisi: '+fd(u.a[0].t)+'</div></summary>'+
+  u.a.map(r=>'<div class="r mu" style="margin-top:6px"><span>'+fd(r.t)+' · '+e(r.block)+'</span><span>'+r.s+' / '+r.n+'</span></div>').join('')+'</details>'}).join('')+
+ '<h2>Eng ko\u2018p xato qilingan savollar</h2>'+(qs.map(([h,v])=>'<div class="c"><div>'+e(QT[h]||'(o\u2018chirilgan savol)')+'</div><div class="mu">'+v.w+' marta xato / '+v.a+' marta berilgan · <span class="no">'+pc(v.w,v.a)+'% xato</span></div></div>').join('')||'<p class="mu">Hali xato yo\u2018q.</p>')+
+ '<p style="margin-top:20px"><button id="out" style="background:#2c2c33">Chiqish</button></p>';
+ document.getElementById('out').onclick=()=>signOut(auth)}
+</script></body></html>
